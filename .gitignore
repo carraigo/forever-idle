@@ -1,0 +1,17 @@
+# Release builds
+*.zip
+/dist/
+/.release/
+
+# Saved variables copied out of WTF for testing
+*.lua.bak
+/WTF/
+
+# Editors and OS
+.vscode/
+.idea/
+*.swp
+*~
+.DS_Store
+Thumbs.db
+desktop.ini
