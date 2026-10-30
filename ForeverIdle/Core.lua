@@ -8,13 +8,16 @@ local G = {}
 ns.Game = G
 
 local floor, min, max, log = math.floor, math.min, math.max, math.log
-local now = function() return time() end
+-- The realm's clock, not the computer's, so winding your PC clock forward
+-- doesn't finish expeditions or pay out offline gold.
+local now = function() return GetServerTime and GetServerTime() or time() end
 
 local byId = {}
 for i, h in ipairs(ns.HIRELINGS) do h.index = i byId[h.id] = h end
 local zoneById = {}
 for i, z in ipairs(ns.ZONES) do z.index = i zoneById[z.id] = z end
 G.hireling, G.zone = byId, zoneById
+G.Now = now
 
 -- Every upgrade in one list: four per hireling, then the global ones.
 G.UPGRADES, G.upgradeById = {}, {}
@@ -37,7 +40,7 @@ for _, u in ipairs(G.UPGRADES) do G.upgradeById[u.id] = u end
 local DEFAULTS = {
     version = 1,
     gold = 0, runEarned = 0, renown = 0,
-    hire = {}, upgrades = {}, cleared = {}, seen = {},
+    hire = {}, upgrades = {}, cleared = {}, relicRank = {}, depth = 0, seen = {},
     chars = {}, visited = {}, realOre = 0, lastHearth = 0,
     expedition = nil, frenzyEnds = 0,
     lastSeen = nil, loggedOutRested = false,
@@ -96,15 +99,42 @@ end
 
 -- Bonuses ---------------------------------------------------------------------------------
 
--- Adds up one kind of bonus from bought global upgrades and cleared relics.
+-- A relic's rank: 0 until its zone is cleared, then one more for every
+-- clear after that, up to the cap.
+function G.RelicRank(z)
+    if not G.db.cleared[z.id] then return 0 end
+    return min(ns.RELIC_MAX_RANK, max(1, G.db.relicRank[z.id] or 1))
+end
+
+-- What a relic gives at a rank (its current rank if none is given).
+function G.RelicValue(z, rank)
+    rank = rank or G.RelicRank(z)
+    if rank < 1 then return 0 end
+    return z.relic.value * (1 + (rank - 1) * ns.RELIC_RANK_BONUS)
+end
+
+-- One line saying what a bonus of this kind and size does.
+function G.DescribeBonus(kind, value)
+    local p = floor(value * 100 + 0.5)
+    if kind == "gps" then return ("+%d%% to all mining."):format(p) end
+    if kind == "click" then return ("+%d%% to your base click."):format(p) end
+    if kind == "discount" then return ("Hirelings cost %d%% less."):format(p) end
+    if kind == "haste" then return ("Expeditions take %d%% less time."):format(p) end
+    if kind == "offline" then return ("+%s hours of full-pace mining while you're away."):format(G.Short(value)) end
+    return ""
+end
+
+-- Adds up one kind of bonus from bought global upgrades, relics and the
+-- Forever Deep.
 function G.Bonus(kind)
     local db, total = G.db, 0
     for _, u in ipairs(ns.GLOBAL_UPGRADES) do
         if u.kind == kind and db.upgrades[u.id] then total = total + u.value end
     end
     for _, z in ipairs(ns.ZONES) do
-        if z.relic.kind == kind and db.cleared[z.id] then total = total + z.relic.value end
+        if z.relic.kind == kind then total = total + G.RelicValue(z) end
     end
+    if kind == "gps" then total = total + (db.depth or 0) * ns.DEEP.bonus end
     return total
 end
 
@@ -351,52 +381,95 @@ end
 
 -- Expeditions -----------------------------------------------------------------------------
 
+-- The Forever Deep as an expedition to one depth (the next one by default).
+-- It's built fresh each time because every depth is a little harder.
+function G.Deep(depth)
+    local d = ns.DEEP
+    depth = depth or (G.db.depth or 0) + 1
+    return {
+        id = "deep", deep = true, depth = depth,
+        name = ("%s, depth %d"):format(d.name, depth), icon = d.icon,
+        minutes = min(d.maxMinutes, d.minutes + d.minutesPerDepth * (depth - 1)),
+        cost = d.cost * d.costGrowth ^ (depth - 1),
+        need = d.need + d.needPerDepth * (depth - 1),
+    }
+end
+
+-- A zone by id, including the Forever Deep.
+function G.ZoneFor(id, depth)
+    if id == "deep" then return G.Deep(depth) end
+    return zoneById[id]
+end
+
+-- The Forever Deep's bonus to all mining, as a whole percent, for the
+-- deepest depth reached (or for this many depths).
+function G.DeepPercent(depth)
+    return floor((depth or G.db.depth or 0) * ns.DEEP.bonus * 100 + 0.5)
+end
+
+function G.DeepOpen()
+    return G.db.cleared[ns.ZONES[#ns.ZONES].id] ~= nil
+end
+
 function G.ZoneOpen(z)
+    if z.deep then return G.DeepOpen() end
     return z.index == 1 or G.db.cleared[ns.ZONES[z.index - 1].id] ~= nil
 end
 
 function G.ExpeditionSeconds(z)
-    local scouted = G.Scouted(z) and ns.SCOUTED_TIME or 1
+    local scouted = not z.deep and G.Scouted(z) and ns.SCOUTED_TIME or 1
     return floor(z.minutes * 60 * max(0.25, 1 - G.Bonus("haste")) * scouted)
 end
 
 -- Why you can't send an expedition here, or nil if you can.
 function G.CantSend(z)
     if G.db.expedition then return "An expedition is already out." end
-    if not G.ZoneOpen(z) then return "Clear the zone before it first." end
+    if not G.ZoneOpen(z) then return z.deep and "Clear Naxxramas first." or "Clear the zone before it first." end
     if G.TotalHired() < z.need then return ("Needs %d hirelings."):format(z.need) end
     if G.db.gold < z.cost then return "Not enough gold for supplies." end
 end
 
 function G.SendExpedition(id)
-    local z = zoneById[id]
+    local z = G.ZoneFor(id)
     if not z or G.CantSend(z) then return false end
     G.Spend(z.cost)
     local secs = G.ExpeditionSeconds(z)
     -- The haul is set when they leave: supplies back three times over, plus
     -- a quarter of what your crew would mine in that time. Twice that if one
     -- of your characters has been there and could tell them the way.
-    local scouted = G.Scouted(z)
+    local scouted = not z.deep and G.Scouted(z)
     G.db.expedition = {
-        zone = id, started = now(), ends = now() + secs, scouted = scouted,
+        zone = id, depth = z.depth, started = now(), ends = now() + secs, scouted = scouted,
         reward = (z.cost * 3 + G.GPS(true) * secs * 0.25) * (scouted and ns.SCOUTED_GOLD or 1),
     }
     return true
 end
 
--- Brings an expedition home if its time is up. Returns a report table.
+-- Brings an expedition home if its time is up. Returns a report table:
+-- the relic on a first clear, its new rank on a later one, or the depth
+-- reached in the Forever Deep.
 function G.CheckExpedition()
-    local e = G.db.expedition
+    local db = G.db
+    local e = db.expedition
     if not e or now() < e.ends then return end
-    local z = zoneById[e.zone]
-    G.db.expedition = nil
+    local z = G.ZoneFor(e.zone, e.depth)
+    db.expedition = nil
     if not z then return end
     G.Earn(e.reward)
-    G.db.stats.expeditions = G.db.stats.expeditions + 1
+    db.stats.expeditions = db.stats.expeditions + 1
     local report = { zone = z, gold = e.reward }
-    if not G.db.cleared[z.id] then
-        G.db.cleared[z.id] = now()
+    if z.deep then
+        if z.depth > (db.depth or 0) then
+            db.depth = z.depth
+            report.depth = z.depth
+        end
+    elseif not db.cleared[z.id] then
+        db.cleared[z.id] = now()
+        db.relicRank[z.id] = 1
         report.relic = z.relic
+    elseif G.RelicRank(z) < ns.RELIC_MAX_RANK then
+        db.relicRank[z.id] = G.RelicRank(z) + 1
+        report.rank = db.relicRank[z.id]
     end
     if ns.OnExpeditionHome then ns.OnExpeditionHome(report) end
     return report

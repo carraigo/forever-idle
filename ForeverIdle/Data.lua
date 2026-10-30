@@ -31,22 +31,22 @@ ns.HIRELINGS = {
       text = "The dragon is asleep. Probably. Lease is month to month." },
 }
 
--- Each hireling gets four upgrades, each doubling that hireling's output.
+-- Each hireling gets five upgrades, each doubling that hireling's output.
 -- They unlock at these head counts and cost the hireling's base cost times
 -- the matching multiplier.
-ns.TIER_AT = { 10, 25, 50, 100 }
-ns.TIER_COST = { 15, 150, 2500, 60000 }
+ns.TIER_AT = { 10, 25, 50, 100, 200 }
+ns.TIER_COST = { 15, 150, 2500, 60000, 3e10 }
 ns.TIER_NAMES = {
-    peasant = { "Sturdier Picks", "Miner's Lamp", "Union of Prospectors", "Stormwind Mining Charter" },
-    kobold = { "Bigger Candles", "Two Candles Each", "Kobold Overseer", "Candle Wax Futures" },
-    dwarf = { "Thunderbrew Rations", "Explorers' League Maps", "Deeprun Shortcut", "Ironforge Council Grant" },
-    gnome = { "Calibrated Cogs", "Fewer Explosions", "Mechanostrider Couriers", "Tinker Town Patent" },
-    shredder = { "Overclocked Saw", "Extra Fuel Tank", "Shredder Pilot Union", "Trade Prince Approval" },
-    kodo = { "Saddlebags", "Bigger Kodos", "Crossroads Waystation", "Thunder Bluff Contract" },
-    auction = { "Lower Deposit", "Undercut by One Copper", "Neutral Auction House", "Cornered Market" },
-    alchemist = { "Philosopher's Stone", "Transmute Mastery", "Alchemist's Lab", "Elixir of Greed" },
-    fleet = { "Faster Sails", "Cannon Escort", "Ratchet Harbour", "Gadgetzan Trade Pact" },
-    hoard = { "Quieter Footsteps", "Longer Lease", "Dragonkin Accountant", "Sleeping Draught" },
+    peasant = { "Sturdier Picks", "Miner's Lamp", "Union of Prospectors", "Stormwind Mining Charter", "Lord of the Jasperlode" },
+    kobold = { "Bigger Candles", "Two Candles Each", "Kobold Overseer", "Candle Wax Futures", "Kobold King's Blessing" },
+    dwarf = { "Thunderbrew Rations", "Explorers' League Maps", "Deeprun Shortcut", "Ironforge Council Grant", "Bronzebeard Seal" },
+    gnome = { "Calibrated Cogs", "Fewer Explosions", "Mechanostrider Couriers", "Tinker Town Patent", "Ultrasafe Personnel Launcher" },
+    shredder = { "Overclocked Saw", "Extra Fuel Tank", "Shredder Pilot Union", "Trade Prince Approval", "Shredder Mk. Infinity" },
+    kodo = { "Saddlebags", "Bigger Kodos", "Crossroads Waystation", "Thunder Bluff Contract", "Great Kodo Migration" },
+    auction = { "Lower Deposit", "Undercut by One Copper", "Neutral Auction House", "Cornered Market", "Every Auction House at Once" },
+    alchemist = { "Philosopher's Stone", "Transmute Mastery", "Alchemist's Lab", "Elixir of Greed", "Transmute: Gold" },
+    fleet = { "Faster Sails", "Cannon Escort", "Ratchet Harbour", "Gadgetzan Trade Pact", "Blackwater Raider Truce" },
+    hoard = { "Quieter Footsteps", "Longer Lease", "Dragonkin Accountant", "Sleeping Draught", "Dragonflight Accord" },
 }
 
 -- Upgrades that aren't tied to one hireling. kind: click (+% to the base
@@ -139,6 +139,23 @@ ns.STANDINGS = {
     { at = 25, name = "Honored", colour = "00ff88" },
     { at = 100, name = "Revered", colour = "00ffcc" },
     { at = 400, name = "Exalted", colour = "00ffff" },
+}
+
+-- Relic ranks: every clear after the first raises that zone's relic a rank,
+-- up to RELIC_MAX_RANK. Each rank adds RELIC_RANK_BONUS of the relic's base
+-- value again (so rank 5 is three times rank 1). Ranks are kept on Hearth.
+ns.RELIC_MAX_RANK = 5
+ns.RELIC_RANK_BONUS = 0.5
+
+-- The Forever Deep: opens once Naxxramas is cleared and never runs out.
+-- Each depth takes longer, costs more and needs more hirelings, and every
+-- depth reached adds DEEP_BONUS to all mining for good (kept on Hearth).
+ns.DEEP = {
+    name = "The Forever Deep", icon = I .. "Spell_Shadow_ShadowWordPain",
+    minutes = 120, minutesPerDepth = 30, maxMinutes = 720,
+    cost = 5e15, costGrowth = 3,
+    need = 300, needPerDepth = 10,
+    bonus = 0.05,
 }
 
 -- Offline gains work like rested XP. Log out rested (an inn or a city) and

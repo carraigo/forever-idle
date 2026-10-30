@@ -24,6 +24,7 @@ local LATIN = { enUS = true, enGB = true, deDE = true, frFR = true, esES = true,
 local BODY = LATIN[GetLocale and GetLocale() or "enUS"] and "Fonts\\ARIALN.TTF" or STANDARD_TEXT_FONT
 local TITLE = STANDARD_TEXT_FONT
 local QUESTION = "Interface\\Icons\\INV_Misc_QuestionMark"
+ns.LOGO = "Interface\\AddOns\\ForeverIdle\\Media\\Logo"
 local BAR = "Interface\\TargetingFrame\\UI-StatusBar"
 
 -- Widget kit ------------------------------------------------------------------------------
@@ -107,7 +108,7 @@ local function paint(colour, s) return "|cff" .. colour .. s .. "|r" end
 
 -- Main window ---------------------------------------------------------------------------
 
-local W, H, LEFT_W = 760, 480, 250
+local W, H, LEFT_W = 760, 508, 250
 local refreshYou
 local frame, pages, tabs = nil, {}, {}
 
@@ -132,8 +133,12 @@ local function build()
     tinsert(UISpecialFrames, "ForeverIdleFrame")
     frame:Hide()
 
+    local logo = frame:CreateTexture(nil, "ARTWORK")
+    logo:SetTexture(ns.LOGO)
+    logo:SetSize(22, 22)
+    logo:SetPoint("TOPLEFT", 10, -7)
     local title = Text(frame, 15, C.accent, TITLE)
-    title:SetPoint("TOPLEFT", 14, -10)
+    title:SetPoint("LEFT", logo, "RIGHT", 6, 0)
     title:SetText("Forever Idle")
     frame.subtitle = Text(frame, 12, C.muted)
     frame.subtitle:SetPoint("LEFT", title, "RIGHT", 10, -1)
@@ -450,7 +455,7 @@ function UI.BuildUpgrades(page)
     end
     page.boughtHead = Text(page, 13, C.muted)
     page.boughtHead:SetPoint("TOPLEFT", 2, -176)
-    for i = 1, 48 do
+    for i = 1, 64 do
         local b = Icon(page, 26)
         b:SetPoint("TOPLEFT", ((i - 1) % 16) * 29, -198 - math.floor((i - 1) / 16) * 29)
         Tooltip(b, upgradeTooltip)
@@ -509,8 +514,13 @@ function UI.BuildExpeditions(page)
     cur.time:SetPoint("CENTER")
     page.cur = cur
 
+    -- One row per zone, then the Forever Deep at the bottom. The Deep's row
+    -- asks for its zone each time because every depth is different.
     page.rows = {}
-    for i, z in ipairs(ns.ZONES) do
+    local list = {}
+    for _, z in ipairs(ns.ZONES) do list[#list + 1] = function() return z end end
+    list[#list + 1] = function() return G.Deep() end
+    for i, zoneOf in ipairs(list) do
         local row = CreateFrame("Frame", nil, page)
         row:SetPoint("TOPLEFT", 0, -58 - (i - 1) * 26)
         row:SetPoint("RIGHT")
@@ -518,12 +528,19 @@ function UI.BuildExpeditions(page)
         Fill(row, C.panel)
         row.relic = Icon(row, 22)
         row.relic:SetPoint("LEFT", 1, 0)
+        row.rank = Text(row.relic, 10, C.accent, TITLE, "OUTLINE")
+        row.rank:SetPoint("BOTTOMRIGHT", 1, -1)
         Tooltip(row.relic, function()
-            local open = G.ZoneOpen(z)
-            GameTooltip:SetText(open and z.relic.name or "Unknown relic")
-            if open then GameTooltip:AddLine(z.relic.text, 1, 1, 1, true) end
-            if G.db.cleared[z.id] then GameTooltip:AddLine("Found. The bonus is permanent.", 0.45, 0.85, 0.40)
-            else GameTooltip:AddLine("Found on your first clear of " .. z.name .. ".", 0.6, 0.6, 0.6) end
+            local z = zoneOf()
+            if z.deep then
+                GameTooltip:SetText(ns.DEEP.name)
+                GameTooltip:AddLine(("A shaft with no bottom. Every depth you reach adds %d%% to all mining for good."):format(G.DeepPercent(1)), 1, 1, 1, true)
+                GameTooltip:AddLine(("Deepest so far: %d (+%d%%)."):format(G.db.depth, G.DeepPercent()), 0.45, 0.85, 0.40)
+                return
+            end
+            if not G.ZoneOpen(z) then GameTooltip:SetText("Unknown relic") return end
+            UI.RelicTooltip(z)
+            if not G.db.cleared[z.id] then GameTooltip:AddLine("Found on your first clear of " .. z.name .. ".", 0.6, 0.6, 0.6) end
         end)
         row.name = Text(row, 13, C.text)
         row.name:SetPoint("LEFT", 30, 0)
@@ -532,21 +549,30 @@ function UI.BuildExpeditions(page)
         row.send = Button(row, "Send", 76, 20)
         row.send:SetPoint("RIGHT", -2, 0)
         row.send:SetScript("OnClick", function()
-            if G.SendExpedition(z.id) then ns.Sound("IG_MAINMENU_OPEN") UI.Refresh(true) end
+            if G.SendExpedition(zoneOf().id) then ns.Sound("IG_MAINMENU_OPEN") UI.Refresh(true) end
         end)
         Tooltip(row.send, function()
+            local z = zoneOf()
             local why = G.CantSend(z)
             GameTooltip:SetText(z.name)
             GameTooltip:AddLine(("Takes %s. Supplies cost %s."):format(G.Duration(G.ExpeditionSeconds(z)), G.Gold(z.cost)), 1, 1, 1)
             GameTooltip:AddLine("Brings back your supplies three times over, plus a quarter of what your crew mines meanwhile.", 0.8, 0.8, 0.8, true)
-            if G.Scouted(z) then
-                GameTooltip:AddLine("Scouted: you've been here, so it's half the time and twice the gold.", 0.45, 0.85, 0.40, true)
+            if z.deep then
+                GameTooltip:AddLine(("Reaching depth %d adds another %d%% to all mining for good."):format(z.depth, G.DeepPercent(1)), 0.45, 0.85, 0.40, true)
             else
-                GameTooltip:AddLine("Visit " .. z.name .. " on any character to scout it: half the time, twice the gold.", 0.6, 0.6, 0.6, true)
+                local rank = G.RelicRank(z)
+                if rank >= 1 and rank < ns.RELIC_MAX_RANK then
+                    GameTooltip:AddLine(("Clearing it again raises the %s to rank %d: %s"):format(z.relic.name, rank + 1, G.DescribeBonus(z.relic.kind, G.RelicValue(z, rank + 1))), 0.45, 0.85, 0.40, true)
+                end
+                if G.Scouted(z) then
+                    GameTooltip:AddLine("Scouted: you've been here, so it's half the time and twice the gold.", 0.45, 0.85, 0.40, true)
+                else
+                    GameTooltip:AddLine("Visit " .. z.name .. " on any character to scout it: half the time, twice the gold.", 0.6, 0.6, 0.6, true)
+                end
             end
             if why then GameTooltip:AddLine(why, 0.92, 0.36, 0.30) end
         end)
-        row.z = z
+        row.zoneOf = zoneOf
         page.rows[i] = row
     end
 end
@@ -555,9 +581,9 @@ local function refreshExpeditions(page)
     local e = G.db.expedition
     local cur = page.cur
     if e then
-        local z = G.zone[e.zone]
+        local z = G.ZoneFor(e.zone, e.depth)
         local total = math.max(1, e.ends - e.started)
-        local left = e.ends - time()
+        local left = e.ends - G.Now()
         cur.title:SetText(("Expedition to %s  ·  bringing home %s"):format(z and z.name or "?", G.Gold(e.reward)))
         cur.bar:SetValue(1 - left / total)
         cur.time:SetText(G.Duration(left) .. " left")
@@ -568,28 +594,55 @@ local function refreshExpeditions(page)
     end
     local hired = G.TotalHired()
     for _, row in ipairs(page.rows) do
-        local z = row.z
-        local open, cleared = G.ZoneOpen(z), G.db.cleared[z.id]
-        row.relic.icon:SetTexture(open and z.relic.icon or QUESTION)
-        Desaturate(row.relic.icon, not cleared)
-        local scout = G.Scouted(z) and paint(GOOD, "  scouted") or ""
-        row.name:SetText((open and z.name or paint(MUTED, z.name)) .. scout)
+        local z = row.zoneOf()
+        local open = G.ZoneOpen(z)
+        local name, done
+        if z.deep then
+            row.relic.icon:SetTexture(open and z.icon or QUESTION)
+            done = G.db.depth > 0
+            row.rank:SetText(done and G.db.depth or "")
+            name = open and z.name or paint(MUTED, ns.DEEP.name)
+        else
+            local rank = G.RelicRank(z)
+            row.relic.icon:SetTexture(open and z.relic.icon or QUESTION)
+            done = rank > 0
+            row.rank:SetText(rank > 1 and rank or "")
+            name = (open and z.name or paint(MUTED, z.name)) .. (G.Scouted(z) and paint(GOOD, "  scouted") or "")
+        end
+        Desaturate(row.relic.icon, not done)
+        row.name:SetText(name)
         local need = hired >= z.need and tostring(z.need) or paint(BAD, tostring(z.need))
         local cost = G.db.gold >= z.cost and G.Gold(z.cost) or paint(BAD, G.Short(z.cost)) .. G.COIN
-        row.info:SetText(("%s hired · %s · %s"):format(need, G.Duration(G.ExpeditionSeconds(z)), cost))
+        row.info:SetText(open and ("%s hired · %s · %s"):format(need, G.Duration(G.ExpeditionSeconds(z)), cost) or "")
         row.send:SetShown(open)
-        row.send.label:SetText(e and e.zone == z.id and "Out" or (cleared and "Again" or "Send"))
+        row.send.label:SetText(e and e.zone == z.id and "Out" or (z.deep and "Descend" or (done and "Again" or "Send")))
         row.send.label:SetTextColor(unpack(G.CantSend(z) and C.muted or C.text))
     end
 end
 
 -- Renown page -----------------------------------------------------------------------------
 
+-- A relic's name, what it does at its current rank and what the next rank brings.
+function UI.RelicTooltip(z)
+    local rank = G.RelicRank(z)
+    GameTooltip:SetText(z.relic.name)
+    if rank < 1 then
+        GameTooltip:AddLine(z.relic.text, 1, 1, 1, true)
+        return
+    end
+    GameTooltip:AddLine(("Rank %d of %d: %s"):format(rank, ns.RELIC_MAX_RANK, G.DescribeBonus(z.relic.kind, G.RelicValue(z))), 1, 1, 1, true)
+    if rank < ns.RELIC_MAX_RANK then
+        GameTooltip:AddLine(("Clear %s again for rank %d: %s"):format(z.name, rank + 1, G.DescribeBonus(z.relic.kind, G.RelicValue(z, rank + 1))), 0.6, 0.6, 0.6, true)
+    else
+        GameTooltip:AddLine("Fully ranked.", 0.45, 0.85, 0.40)
+    end
+end
+
 local function relicTooltip(btn)
     local z = btn.z
-    local found = G.db.cleared[z.id]
-    GameTooltip:SetText(found and z.relic.name or "Unknown relic")
-    GameTooltip:AddLine(found and z.relic.text or ("Clear " .. z.name .. " to find it."), 1, 1, 1, true)
+    if G.db.cleared[z.id] then UI.RelicTooltip(z) return end
+    GameTooltip:SetText("Unknown relic")
+    GameTooltip:AddLine("Clear " .. z.name .. " to find it.", 1, 1, 1, true)
 end
 
 function UI.BuildRenown(page)
@@ -628,6 +681,8 @@ function UI.BuildRenown(page)
     for i, z in ipairs(ns.ZONES) do
         local b = Icon(page, 30)
         b:SetPoint("TOPLEFT", (i - 1) * 35, -116)
+        b.rank = Text(b, 11, C.accent, TITLE, "OUTLINE")
+        b.rank:SetPoint("BOTTOMRIGHT", 1, -1)
         b.z = z
         Tooltip(b, relicTooltip)
         page.relics[i] = b
@@ -673,9 +728,10 @@ local function refreshRenown(page)
     page.hearth:SetAlpha(p >= 1 and 1 or 0.45)
     page.pending:SetText(("Next Renown at %s mined this run."):format(G.Gold(G.NextRenownAt())))
     for _, b in ipairs(page.relics) do
-        local found = db.cleared[b.z.id]
-        b.icon:SetTexture(found and b.z.relic.icon or QUESTION)
-        Desaturate(b.icon, not found)
+        local rank = G.RelicRank(b.z)
+        b.icon:SetTexture(rank > 0 and b.z.relic.icon or QUESTION)
+        Desaturate(b.icon, rank == 0)
+        b.rank:SetText(rank > 1 and rank or "")
     end
     local st = db.stats
     page.stats:SetText(table.concat({
@@ -685,6 +741,7 @@ local function refreshRenown(page)
         ("Clicks: %d (%s)"):format(st.clicks, G.Gold(st.clickGold)),
         ("Expeditions: %d  ·  Couriers caught: %d"):format(st.expeditions, st.couriers),
         ("Hearthed home: %d  ·  Real level-ups: %d"):format(st.hearths, st.dings),
+        db.depth > 0 and ("Forever Deep: depth %d (+%d%%)"):format(db.depth, G.DeepPercent()) or nil,
     }, "\n"))
     for _, b in ipairs(page.toggles) do
         local on = db.settings[b.key]
@@ -693,7 +750,7 @@ local function refreshRenown(page)
 end
 
 StaticPopupDialogs["FOREVERIDLE_HEARTH"] = {
-    text = "Hearth home for %d Renown?\n\nYour gold, hirelings, upgrades and any expedition are reset. Renown, relics and cleared zones stay.",
+    text = "Hearth home for %d Renown?\n\nYour gold, hirelings, upgrades and any expedition are reset. Renown, relics, cleared zones and the Forever Deep stay.",
     button1 = "Hearth home", button2 = CANCEL or "Cancel",
     OnAccept = function()
         local gain = G.HearthHome()
@@ -743,7 +800,7 @@ end
 
 local function courierTick()
     local b = frame.courier
-    local t = time()
+    local t = G.Now()
     if b:IsShown() then
         if t > (b.leaves or 0) then b:Hide() end
         return
@@ -795,7 +852,10 @@ local function awayText(r)
     end
     if r.expedition then
         local x = r.expedition
-        lines[#lines + 1] = ("Your expedition to %s came home with %s%s."):format(x.zone.name, G.Gold(x.gold), x.relic and (" and the " .. x.relic.name) or "")
+        local extra = x.relic and (" and the " .. x.relic.name)
+            or x.rank and (", and the %s is now rank %d"):format(x.zone.relic.name, x.rank)
+            or ""
+        lines[#lines + 1] = ("Your expedition to %s came home with %s%s."):format(x.zone.name, G.Gold(x.gold), extra)
     end
     return table.concat(lines, "\n")
 end
@@ -850,6 +910,11 @@ ns.OnExpeditionHome = function(report)
     if report.relic then
         UI.Toast("Relic found: " .. report.relic.name, report.relic.text, report.relic.icon)
         ns.Print(("Your expedition to %s found the %s! %s"):format(report.zone.name, report.relic.name, report.relic.text))
+    elseif report.rank then
+        local z = report.zone
+        UI.Toast(("%s: rank %d"):format(z.relic.name, report.rank), G.DescribeBonus(z.relic.kind, G.RelicValue(z)), z.relic.icon)
+    elseif report.depth then
+        UI.Toast(("%s: depth %d"):format(ns.DEEP.name, report.depth), ("+%s, and all mining is now +%d%% from the Deep."):format(G.Gold(report.gold), G.DeepPercent()), ns.DEEP.icon)
     else
         UI.Toast(report.zone.name, "Your expedition is home with " .. G.Gold(report.gold) .. ".", "Interface\\Icons\\INV_Misc_Map_01")
     end
@@ -949,7 +1014,7 @@ function refreshYou(page)
     local scouted = 0
     for _, z in ipairs(ns.ZONES) do if G.Scouted(z) then scouted = scouted + 1 end end
     local st = db.stats
-    local hearthReady = time() - (db.lastHearth or 0) >= ns.HEARTH_COOLDOWN
+    local hearthReady = G.Now() - (db.lastHearth or 0) >= ns.HEARTH_COOLDOWN
     page.perks:SetText(table.concat({
         ("Scouted %d of %d expedition zones"):format(scouted, #ns.ZONES),
         ("Level-ups: %d (10 minutes of mining each)"):format(st.dings),
@@ -973,9 +1038,9 @@ function UI.Refresh(force)
     frame.subtitle:SetText(paint(G.Standing().colour, G.Standing().name) .. paint(MUTED, ("  ·  Renown %d"):format(G.db.renown)))
     local e = G.db.expedition
     if G.Frenzy() then
-        frame.status:SetText(paint(ACCENT, ("Battle Shout: %ds"):format(G.db.frenzyEnds - time())))
-    elseif e and G.zone[e.zone] then
-        frame.status:SetText(("%s: %s left"):format(G.zone[e.zone].name, G.Duration(e.ends - time())))
+        frame.status:SetText(paint(ACCENT, ("Battle Shout: %ds"):format(G.db.frenzyEnds - G.Now())))
+    elseif e and G.ZoneFor(e.zone, e.depth) then
+        frame.status:SetText(("%s: %s left"):format(G.ZoneFor(e.zone, e.depth).name, G.Duration(e.ends - G.Now())))
     else
         frame.status:SetText("Click the vein to mine.")
     end
