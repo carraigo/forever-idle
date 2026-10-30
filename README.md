@@ -33,6 +33,10 @@ addon in the addon compartment by the minimap (on clients that have one).
   relic with a lasting bonus.
 - **Renown**: Hearth home to reset your run in exchange for Renown, which
   makes every hireling mine more. Renown, relics and cleared zones are kept.
+- **Relic ranks**: send your crew back to a cleared zone to rank its relic
+  up, to a maximum of rank 5.
+- **The Forever Deep**: once Naxxramas is cleared, descend as far as you
+  can. Every depth adds 5% to all mining for good.
 
 ### Your real character helps
 
@@ -65,6 +69,7 @@ ForeverIdle/
   Data.lua                 every number and name: hirelings, upgrades, zones
   Core.lua                 the game loop, saved data, events, slash commands
   UI.lua                   the window, tabs, toasts and popups
+  Media/Logo.tga           the addon icon (64x64, 32-bit TGA)
 ```
 
 Balancing is done in `Data.lua`; the game logic in `Core.lua` doesn't create
