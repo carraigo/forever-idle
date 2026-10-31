@@ -3,6 +3,12 @@
 All notable changes to Forever Idle are listed here. Versions match the
 `## Version` line in `ForeverIdle/ForeverIdle.toc`.
 
+## [0.3.1] - 2026-10-30
+
+### Fixed
+- Pressing Escape no longer closes the game window. Close it with the ×
+  button, `/idle` or the addon compartment.
+
 ## [0.3.0] - 2026-10-30
 
 ### Added

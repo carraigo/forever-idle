@@ -130,7 +130,6 @@ local function build()
     if pos then frame:SetPoint(pos[1], UIParent, pos[2], pos[3], pos[4]) else frame:SetPoint("CENTER") end
     Fill(frame, C.bg)
     Border(frame, { 1, 1, 1, 0.12 })
-    tinsert(UISpecialFrames, "ForeverIdleFrame")
     frame:Hide()
 
     local logo = frame:CreateTexture(nil, "ARTWORK")
