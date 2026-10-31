@@ -3,6 +3,12 @@
 All notable changes to Forever Idle are listed here. Versions match the
 `## Version` line in `ForeverIdle/ForeverIdle.toc`.
 
+## [0.3.3] - 2026-10-31
+
+### Fixed
+- The "While you were away" box now grows to fit its text, so the last
+  line is no longer hidden behind the Collect button.
+
 ## [0.3.2] - 2026-10-31
 
 ### Changed
