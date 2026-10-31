@@ -2,10 +2,11 @@
 ## Title: Forever Idle
 ## Notes: An idle game inside WoW. Mine the vein, hire prospectors, kobolds and goblin shredders, send expeditions from Elwynn to Naxxramas, and Hearth home for Renown. Keeps mining while you're logged out. Type /idle.
 ## Author: Craig
-## Version: 0.3.1
+## Version: 0.3.2
 ## IconTexture: Interface\AddOns\ForeverIdle\Media\Logo
 ## AddonCompartmentFunc: ForeverIdle_OnAddonCompartmentClick
 ## SavedVariables: ForeverIdleDB
+## X-Curse-Project-ID: 1774365
 
 Data.lua
 Core.lua

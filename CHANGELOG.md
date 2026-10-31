@@ -3,6 +3,12 @@
 All notable changes to Forever Idle are listed here. Versions match the
 `## Version` line in `ForeverIdle/ForeverIdle.toc`.
 
+## [0.3.2] - 2026-10-31
+
+### Changed
+- Releases are now packaged and uploaded to CurseForge automatically when a
+  version tag is pushed.
+
 ## [0.3.1] - 2026-10-30
 
 ### Fixed

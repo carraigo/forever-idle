@@ -1,0 +1,15 @@
+# Build settings for the BigWigs packager (used by .github/workflows/release.yml).
+# The addon lives in the ForeverIdle/ subfolder, so move it up to the top of
+# the zip and leave the repo-only files out.
+package-as: ForeverIdle
+
+move-folders:
+  ForeverIdle/ForeverIdle: ForeverIdle
+
+ignore:
+  - README.md
+  - CHANGELOG.md
+
+manual-changelog:
+  filename: CHANGELOG.md
+  markup-type: markdown
