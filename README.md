@@ -77,14 +77,6 @@ frames, so it can be tested outside the client.
 
 Saved data is stored per account in `ForeverIdleDB`.
 
-## Releasing
-
-1. Bump `## Version` in both `.toc` files and add an entry to
-   [CHANGELOG.md](CHANGELOG.md).
-2. Commit, then tag and push: `git tag v0.2.2 && git push origin main --tags`.
-3. The Release workflow checks the tag matches the `.toc` version, builds
-   the zip and publishes a GitHub release.
-
 ## License
 
 [MIT](LICENSE)
