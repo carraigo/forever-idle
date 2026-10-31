@@ -324,7 +324,7 @@ function UI.SetCompact(on)
     frame.quick:SetShown(on)
     frame.vein:SetSize(on and 64 or 96, on and 64 or 96)
     frame.vein:SetPoint("TOP", 0, on and -64 or -70)
-    frame.away:SetWidth(on and LEFT_W or 340)
+    frame.away:SetWidth(on and LEFT_W or 400)
     frame.size.label:SetText(on and "+" or "-")
     if frame.courier then frame.courier:Hide() end
     UI.Refresh(true)
@@ -819,7 +819,7 @@ end
 
 function UI.BuildAway(parent)
     local p = CreateFrame("Frame", nil, parent)
-    p:SetSize(340, 150)
+    p:SetSize(400, 150)
     p:SetPoint("CENTER")
     p:SetFrameLevel(parent:GetFrameLevel() + 20)
     p:EnableMouse(true)
@@ -860,8 +860,11 @@ local function awayText(r)
 end
 
 function UI.ShowAway(r)
-    frame.away.text:SetText(awayText(r))
-    frame.away:Show()
+    local p = frame.away
+    p.text:SetText(awayText(r))
+    -- Grow to fit the text: 40 above it, then room for the Collect button.
+    p:SetHeight(math.max(150, math.ceil(p.text:GetStringHeight()) + 92))
+    p:Show()
 end
 
 function UI.ShowOffline(r)
