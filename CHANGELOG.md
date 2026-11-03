@@ -1,7 +1,27 @@
 # Changelog
 
 All notable changes to Forever Idle are listed here. Versions match the
-`## Version` line in `ForeverIdle/ForeverIdle.toc`.
+git tag a release is built from; the packager writes it into the `.toc`
+files in place of `@project-version@`.
+
+## [0.3.4] - 2026-11-03
+
+### Fixed
+- Scouting now works on clients in every language. Zones are recognised by
+  their map, so German, French, Russian and other players get the half-time,
+  double-gold bonus too. Zones you already visited still count.
+- Toasts no longer replace each other. When several arrive at once, such as
+  an expedition coming home and a zone being scouted at login, they now
+  show one after another.
+- The You page shows your real offline shift length, including the extra
+  hours from the Night Watch Lantern and the Skeleton Key.
+- `/idle reset` keeps your settings (sound, couriers, bonuses) and the
+  window's position, size and tab. Before, a wipe in the compact window
+  left the size button needing two clicks.
+
+### Changed
+- The addon's version now comes from the release tag, so the version shown
+  in game always matches the CurseForge file.
 
 ## [0.3.3] - 2026-10-31
 

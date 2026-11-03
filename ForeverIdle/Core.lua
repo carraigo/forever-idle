@@ -19,7 +19,7 @@ for i, z in ipairs(ns.ZONES) do z.index = i zoneById[z.id] = z end
 G.hireling, G.zone = byId, zoneById
 G.Now = now
 
--- Every upgrade in one list: four per hireling, then the global ones.
+-- Every upgrade in one list: five per hireling, then the global ones.
 G.UPGRADES, G.upgradeById = {}, {}
 for _, h in ipairs(ns.HIRELINGS) do
     for tier, at in ipairs(ns.TIER_AT) do
@@ -210,8 +210,52 @@ function G.Visit(zone)
     end
 end
 
+-- A zone's name in the client's own language (the English name if the
+-- client can't say).
+local localName = {}
+function G.LocalName(z)
+    if localName[z.id] == nil then
+        local name
+        if z.instance and GetRealZoneText then
+            local ok, n = pcall(GetRealZoneText, z.instance)
+            name = ok and n or nil
+        elseif z.map and C_Map and C_Map.GetMapInfo then
+            local ok, info = pcall(C_Map.GetMapInfo, z.map)
+            name = ok and info and info.name or nil
+        end
+        localName[z.id] = (name and name ~= "") and name or z.name
+    end
+    return localName[z.id]
+end
+
+-- The expedition zone you're standing in, if any. Matched by map and
+-- instance ID first, so it works on clients in any language.
+function G.CurrentZone()
+    local mapID = C_Map and C_Map.GetBestMapForUnit and C_Map.GetBestMapForUnit("player")
+    local instanceID = GetInstanceInfo and select(8, GetInstanceInfo())
+    local text = GetRealZoneText and GetRealZoneText()
+    for _, z in ipairs(ns.ZONES) do
+        if (z.map and z.map == mapID) or (z.instance and z.instance == instanceID) then return z end
+    end
+    if text and text ~= "" then
+        for _, z in ipairs(ns.ZONES) do
+            if text == z.name or text == G.LocalName(z) then return z end
+        end
+    end
+end
+
+-- Visits are kept by zone id. Older saves kept them by the zone's name as
+-- the client showed it, so those still count.
 function G.Scouted(z)
-    return G.db.visited[z.name] ~= nil
+    local v = G.db.visited
+    return v[z.id] ~= nil or v[z.name] ~= nil or v[G.LocalName(z)] ~= nil
+end
+
+-- Marks a zone scouted. Returns true the first time.
+function G.Scout(z)
+    if not z or G.Scouted(z) then return end
+    G.db.visited[z.id] = now()
+    return true
 end
 
 -- Reads a loot line. Returns the ore name and count if it was your own ore.
@@ -607,14 +651,11 @@ driver:RegisterEvent("UNIT_SPELLCAST_SUCCEEDED")
 
 local HEARTHSTONE = 8690
 local function noteZone()
-    local zone = GetRealZoneText and GetRealZoneText()
-    if G.Visit(zone) then
-        for _, z in ipairs(ns.ZONES) do
-            if z.name == zone then
-                ns.Print(("You've scouted %s. Expeditions there now take half the time and bring back twice the gold."):format(zone))
-                if ns.UI then ns.UI.Toast("Scouted: " .. zone, "Expeditions here: half the time, twice the gold.", z.relic.icon) end
-            end
-        end
+    G.Visit(GetRealZoneText and GetRealZoneText())
+    local z = G.CurrentZone()
+    if G.Scout(z) then
+        ns.Print(("You've scouted %s. Expeditions there now take half the time and bring back twice the gold."):format(z.name))
+        if ns.UI then ns.UI.Toast("Scouted: " .. z.name, "Expeditions here: half the time, twice the gold.", z.relic.icon) end
     end
 end
 
@@ -703,9 +744,15 @@ function ForeverIdle_OnAddonCompartmentClick()
 end
 
 -- Wipes everything, including Renown and relics. What your real characters
--- did (levels, wallets, ore, places) stays, because that really happened.
+-- did (levels, wallets, ore, places, the Hearthstone cooldown) stays,
+-- because that really happened. So do your settings and the window's
+-- place, size and tab.
 function G.Wipe()
-    local keep = { chars = G.db.chars, visited = G.db.visited, realOre = G.db.realOre }
+    local db = G.db
+    local keep = {
+        chars = db.chars, visited = db.visited, realOre = db.realOre, lastHearth = db.lastHearth,
+        settings = db.settings, pos = db.pos, compact = db.compact, tab = db.tab, buyMode = db.buyMode,
+    }
     for k in pairs(G.db) do G.db[k] = nil end
     for k, v in pairs(keep) do G.db[k] = v end
     G.Init(G.db)

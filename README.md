@@ -64,7 +64,7 @@ addon in the addon compartment by the minimap (on clients that have one).
 
 ```
 ForeverIdle/
-  ForeverIdle.toc          addon metadata (version lives here)
+  ForeverIdle.toc          addon metadata (version comes from the git tag)
   ForeverIdle_Vanilla.toc  same, for clients that look for _Vanilla
   Data.lua                 every number and name: hirelings, upgrades, zones
   Core.lua                 the game loop, saved data, events, slash commands
