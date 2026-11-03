@@ -874,7 +874,22 @@ end
 
 -- Toasts ----------------------------------------------------------------------------------
 
+-- Toasts wait their turn, so two that arrive together (an expedition coming
+-- home and a zone scouted at login, say) both get seen. One on its own
+-- stays 5 seconds; with others waiting each gets 3.
 local toast
+local toastQueue = {}
+local TOAST_LONG, TOAST_SHORT, TOAST_FADE, TOAST_MAX = 5, 3, 1, 6
+
+local function showToast(t)
+    toast.title:SetText(t.title)
+    toast.text:SetText(t.text)
+    toast.icon.icon:SetTexture(t.icon or ns.VEINS[1].icon)
+    toast.born = GetTime()
+    toast:SetAlpha(1)
+    toast:Show()
+end
+
 local function buildToast()
     toast = CreateFrame("Frame", nil, UIParent)
     toast:SetSize(320, 54)
@@ -891,19 +906,22 @@ local function buildToast()
     toast.text:SetPoint("RIGHT", -8, 0)
     toast:SetScript("OnUpdate", function(self)
         local age = GetTime() - (self.born or 0)
-        if age > 5 then self:Hide() elseif age > 4 then self:SetAlpha(5 - age) end
+        local life = #toastQueue > 0 and TOAST_SHORT or TOAST_LONG
+        if age > life then
+            local nextToast = table.remove(toastQueue, 1)
+            if nextToast then showToast(nextToast) else self:Hide() end
+        elseif age > life - TOAST_FADE then
+            self:SetAlpha((life - age) / TOAST_FADE)
+        end
     end)
     toast:Hide()
 end
 
 function UI.Toast(title, text, icon)
     if not toast then buildToast() end
-    toast.title:SetText(title)
-    toast.text:SetText(text)
-    toast.icon.icon:SetTexture(icon or ns.VEINS[1].icon)
-    toast.born = GetTime()
-    toast:SetAlpha(1)
-    toast:Show()
+    local t = { title = title, text = text, icon = icon }
+    if not toast:IsShown() then showToast(t) return end
+    if #toastQueue < TOAST_MAX then toastQueue[#toastQueue + 1] = t end
 end
 UI.toast = function() return toast end
 
@@ -998,9 +1016,18 @@ function refreshYou(page)
     cards.field.bonus:SetText(pct(fb))
     cards.field.info:SetText(("%d real ore looted. Every 10 adds 1%%, up to +100%%, and each one pays 20 seconds of mining."):format(ore))
 
+    -- The real shift lengths, relics included (see G.Shift).
     local resting = IsResting and IsResting()
-    page.rest:SetText(resting and paint(GOOD, "You're rested. Log out here and your crew works a full 8-hour shift, then half pace up to 36 hours.")
-        or paint(MUTED, "Not rested. Logging out here gets an 8-hour shift at half pace. Find an inn or a city for a full one."))
+    local shiftHours = ns.SHIFT_HOURS + G.Bonus("offline")
+    local shift = G.Short(shiftHours) .. "-hour"
+    local a = (shift:match("^8") or shift:match("^1[18]%-")) and "an" or "a"
+    if resting then
+        local slowAfter = shiftHours < ns.LONG_SHIFT_HOURS
+            and (", then half pace up to %s hours"):format(G.Short(ns.LONG_SHIFT_HOURS)) or ""
+        page.rest:SetText(paint(GOOD, ("You're rested. Log out here and your crew works a full %s shift%s."):format(shift, slowAfter)))
+    else
+        page.rest:SetText(paint(MUTED, ("Not rested. Logging out here gets %s %s shift at half pace. Find an inn or a city for a full one."):format(a, shift)))
+    end
 
     local list = {}
     for key, c in pairs(db.chars) do list[#list + 1] = c end
